@@ -82,3 +82,103 @@ int main(){
     cout << "Parallel DFS: ";
     pDFS(tree);
 }
+
+
+// using openmp =================
+
+#include <iostream>
+#include <queue>
+#include <stack>
+#include <omp.h>
+
+// Define the number of threads to be used
+#define NUM_THREADS 4
+
+// Function for parallel Breadth First Search (BFS)
+void parallelBFS(int startNode, const std::vector<std::vector<int>>& graph, std::vector<bool>& visited) {
+    std::queue<int> bfsQueue;
+    bfsQueue.push(startNode);
+    visited[startNode] = true;
+
+    while (!bfsQueue.empty()) {
+        int currentNode = bfsQueue.front();
+        bfsQueue.pop();
+
+        // Process the current node
+        std::cout << "BFS: Visiting Node " << currentNode << " on Thread " << omp_get_thread_num() << std::endl;
+
+        // Enqueue adjacent nodes
+        #pragma omp parallel for shared(graph, visited, bfsQueue)
+        for (size_t i = 0; i < graph[currentNode].size(); ++i) {
+            int adjacentNode = graph[currentNode][i];
+            if (!visited[adjacentNode]) {
+                visited[adjacentNode] = true;
+                bfsQueue.push(adjacentNode);
+            }
+        }
+    }
+}
+
+// Function for parallel Depth First Search (DFS)
+void parallelDFS(int startNode, const std::vector<std::vector<int>>& graph, std::vector<bool>& visited) {
+    std::stack<int> dfsStack;
+    dfsStack.push(startNode);
+    visited[startNode] = true;
+
+    while (!dfsStack.empty()) {
+        int currentNode = dfsStack.top();
+        dfsStack.pop();
+
+        // Process the current node
+        std::cout << "DFS: Visiting Node " << currentNode << " on Thread " << omp_get_thread_num() << std::endl;
+
+        // Push unvisited adjacent nodes to the stack
+        #pragma omp parallel for shared(graph, visited, dfsStack)
+        for (size_t i = 0; i < graph[currentNode].size(); ++i) {
+            int adjacentNode = graph[currentNode][i];
+            if (!visited[adjacentNode]) {
+                #pragma omp critical
+                {
+                    visited[adjacentNode] = true;
+                    dfsStack.push(adjacentNode);
+                }
+            }
+        }
+    }
+}
+
+int main() {
+    // Example graph represented as an adjacency list
+    std::vector<std::vector<int>> graph = {
+        {1, 2},
+        {0, 3, 4},
+        {0, 5},
+        {1},
+        {1, 6},
+        {2},
+        {4}
+    };
+
+    std::vector<bool> visited(graph.size(), false);
+
+    // Parallel Breadth First Search (BFS)
+    std::cout << "Parallel BFS" << std::endl;
+    #pragma omp parallel num_threads(NUM_THREADS)
+    {
+        #pragma omp single nowait
+        parallelBFS(0, graph, visited);
+    }
+
+    // Reset visited array for parallel DFS
+    std::fill(visited.begin(), visited.end(), false);
+
+    // Parallel Depth First Search (DFS)
+    std::cout << "\nParallel DFS" << std::endl;
+    #pragma omp parallel num_threads(NUM_THREADS)
+    {
+        #pragma omp single nowait
+        parallelDFS(0, graph, visited);
+    }
+
+    return 0;
+}
